@@ -3,10 +3,14 @@ import socket
 import threading
 import datetime
 import hashlib
+import os
+import google.generativeai as genai
 
 ip_range_listen = '0.0.0.0'
 port = 65432
 clients_connected = {}
+gemini_api_key = os.getenv("GEMINI_API_KEY")
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 def createId(ip_client):
     # Codificar el string a bytes antes de hashear
@@ -24,8 +28,31 @@ def getConnectionById(id):
     # Convertimos el diccionario a un String para poder enviarlo por el socket
     return f"ID: {id} | IP: {cliente['ip']} | Puerto: {cliente['port']} | Desde: {cliente['connectedAt']}"
 
+def iaActivate(conn):
+    conn.sendall("ia-activate")
+
+    try:
+        while True:
+            data = conn.recv(1024)
+            if not data: break
+
+            request = data.decode('utf-8').strip()
+
+            # se consulta mediante una api a una ia
+            try:
+                response = model.generate_content(request)
+                reply = response.text
+            except Exception as e:
+                reply = f"[ERROR-IA]: {e}"
+
+            conn.sendall(reply.encode('utf-8'))
+
+    except Exception as e:
+        print(f"[SYSTEM]: error en la consulta {e}")
+
 COMMANDS = {
-    "INFO": getConnectionById, 
+    "INFO": getConnectionById,
+    "IA": iaActivate, 
 }
 
 def client_handler(conn, addr, client_id):
@@ -40,6 +67,11 @@ def client_handler(conn, addr, client_id):
             if not data: break
 
             request = data.decode('utf-8').strip().upper()
+
+            if request == 'ia' or 'IA':
+                iaActivate(conn)
+                continue
+
             commandExists = COMMANDS.get(request)
 
             if commandExists:
