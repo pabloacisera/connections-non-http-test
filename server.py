@@ -80,7 +80,7 @@ def iaActivate(conn, client_id):
                 if model:
                     # 3. Crear el chat con el historial filtrado
                     chat = model.chats.create(
-                        model="gemini-2.0-flash-lite",
+                        model="gemini-2.5-flash",
                         history=gemini_history
                     )
 
