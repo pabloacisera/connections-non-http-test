@@ -5,6 +5,7 @@ import datetime
 import hashlib
 import os
 from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,6 +14,8 @@ ip_range_listen = '0.0.0.0'
 port = int(os.getenv("PORT_SERVER", 65432))
 gemini_api_key = os.getenv("GEMINI_API_KEY")
 model = None
+clients_connected = {}
+chat_sessions = {}
 
 if gemini_api_key:
     model = genai.Client(api_key=gemini_api_key)
@@ -22,9 +25,6 @@ if gemini_api_key:
         print(f"Modelo disponible: {m.name}")
 else:
     print("[ERROR]: No se encontró GEMINI_API_KEY en el archivo .env")
-
-
-clients_connected = {}
 
 def createId(ip_client):
     # Codificar el string a bytes antes de hashear
@@ -42,41 +42,81 @@ def getConnectionById(id):
     # Convertimos el diccionario a un String para poder enviarlo por el socket
     return f"ID: {id} | IP: {cliente['ip']} | Puerto: {cliente['port']} | Desde: {cliente['connectedAt']}"
 
-def iaActivate(conn):
+def iaActivate(conn, client_id):
     conn.sendall("ia-activate".encode('utf-8')) 
 
     try:
         while True:
             data = conn.recv(1024)
-            if not data: break
+            if not data: 
+                break
 
             request = data.decode('utf-8').strip()
             
             if request.lower() == 'ia-deactivate':
                 break
 
-            # Inicializamos reply con un mensaje por defecto
             reply = "No se pudo obtener una respuesta de la IA."
 
             try:
-                # Verificamos si el cliente de IA existe
-                if model:
-                    response = model.models.generate_content(
-                        model='models/gemini-2.5-flash-lite',
-                        contents=request
+                # 1. Inicializar sesión si no existe
+                if client_id not in chat_sessions:
+                    chat_sessions[client_id] = {
+                        "messages": [], # Aquí guardamos: {"role":..., "content":..., "timestamp":...}
+                        "updated_at": datetime.datetime.now()
+                    }
+                
+                # 2. Preparar el historial para Gemini (solo roles y partes)
+                # Filtramos nuestros metadatos para que la IA no se confunda
+                gemini_history = []
+                for m in chat_sessions[client_id]["messages"]:
+                    gemini_history.append(
+                        types.Content(
+                            role=m["role"],
+                            parts=[types.Part(text=m["content"])]
+                        )
                     )
-                    # Usamos getattr o una validación simple para asegurar el string
-                    reply = response.text if response.text else "La IA devolvió una respuesta vacía."
-                else:
-                    reply = "[ERROR-IA]: El servicio de IA no está configurado (falta API KEY)."
-            except Exception as e:
-                reply = f"[ERROR-IA]: {e}"
+                    
+                if model:
+                    # 3. Crear el chat con el historial filtrado
+                    chat = model.chats.create(
+                        model="gemini-2.0-flash-lite",
+                        history=gemini_history
+                    )
 
-            # Ahora estamos seguros de que reply es un string
+                    # 4. Enviar mensaje
+                    response = chat.send_message(request)
+                    reply = response.text if response.text else "Respuesta vacía."
+
+                    # 5. ACTUALIZACIÓN CON FECHAS INDIVIDUALES
+                    timestamp_now = datetime.datetime.now()
+                    
+                    # Guardamos el mensaje del usuario
+                    chat_sessions[client_id]["messages"].append({
+                        "role": "user",
+                        "content": request,
+                        "timestamp": timestamp_now
+                    })
+                    
+                    # Guardamos la respuesta de la IA
+                    chat_sessions[client_id]["messages"].append({
+                        "role": "model",
+                        "content": reply,
+                        "timestamp": timestamp_now
+                    })
+                    
+                    # Actualizamos la fecha general de la sesión
+                    chat_sessions[client_id]["updated_at"] = timestamp_now
+                else:
+                    reply = "[ERROR-IA]: Servicio no configurado."
+
+            except Exception as e:
+                reply = f"[ERROR-IA]: {str(e)}"
+
             conn.sendall(reply.encode('utf-8'))
             
     except Exception as e:
-        print(f"[SYSTEM]: error en la consulta {e}")
+        print(f"[SYSTEM]: Error en sesión {client_id}: {e}")
 
 COMMANDS = {
     "INFO": getConnectionById,
@@ -96,7 +136,7 @@ def client_handler(conn, addr, client_id):
             request = data.decode('utf-8').strip().upper()
 
             if request == 'IA':
-                iaActivate(conn)
+                iaActivate(conn, client_id)
                 continue
 
             commandExists = COMMANDS.get(request)
