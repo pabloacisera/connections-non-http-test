@@ -4,7 +4,7 @@ import threading
 import datetime
 import hashlib
 import os
-import google as genai
+from google import genai
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,13 +12,14 @@ load_dotenv()
 ip_range_listen = '0.0.0.0'
 port = int(os.getenv("PORT_SERVER", 65432))
 gemini_api_key = os.getenv("GEMINI_API_KEY")
+model = None
 
 if gemini_api_key:
-    genai.configure(api_key=gemini_api_key)
+    model = genai.Client(api_key=gemini_api_key)
 else:
     print("[ERROR]: No se encontró GEMINI_API_KEY en el archivo .env")
 
-model = genai.Client(api_key=gemini_api_key)
+
 clients_connected = {}
 
 def createId(ip_client):
@@ -38,7 +39,6 @@ def getConnectionById(id):
     return f"ID: {id} | IP: {cliente['ip']} | Puerto: {cliente['port']} | Desde: {cliente['connectedAt']}"
 
 def iaActivate(conn):
-    # ERROR: conn.sendall("ia-activate") -> Falta .encode()
     conn.sendall("ia-activate".encode('utf-8')) 
 
     try:
@@ -48,20 +48,29 @@ def iaActivate(conn):
 
             request = data.decode('utf-8').strip()
             
-            # Lógica para salir del modo IA en el servidor
             if request.lower() == 'ia-deactivate':
                 break
 
+            # Inicializamos reply con un mensaje por defecto
+            reply = "No se pudo obtener una respuesta de la IA."
+
             try:
-                response = model.models.generate_content(
-                    model='gemini-1.5-flash',
-                    contents=request
-                )
-                reply = response.text
+                # Verificamos si el cliente de IA existe
+                if model:
+                    response = model.models.generate_content(
+                        model='gemini-1.5-flash',
+                        contents=request
+                    )
+                    # Usamos getattr o una validación simple para asegurar el string
+                    reply = response.text if response.text else "La IA devolvió una respuesta vacía."
+                else:
+                    reply = "[ERROR-IA]: El servicio de IA no está configurado (falta API KEY)."
             except Exception as e:
                 reply = f"[ERROR-IA]: {e}"
 
+            # Ahora estamos seguros de que reply es un string
             conn.sendall(reply.encode('utf-8'))
+            
     except Exception as e:
         print(f"[SYSTEM]: error en la consulta {e}")
 
