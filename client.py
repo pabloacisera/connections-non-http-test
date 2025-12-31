@@ -1,9 +1,12 @@
 import socket
 import sys
 import os
+from dotenv import load_dotenv
 
-ip_server = os.getenv("IP_SERVER") # or '192.168.1.10' 
-server_port = os.getenv("PORT_SERVER")
+load_dotenv()
+
+ip_server = os.getenv("IP_SERVER")
+server_port = int(os.getenv("PORT_SERVER", 65432))
 
 try:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

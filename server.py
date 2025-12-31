@@ -5,12 +5,21 @@ import datetime
 import hashlib
 import os
 import google.generativeai as genai
+from dotenv import load_dotenv
+
+load_dotenv()
 
 ip_range_listen = '0.0.0.0'
-port = 65432
-clients_connected = {}
+port = int(os.getenv("PORT_SERVER", 65432))
 gemini_api_key = os.getenv("GEMINI_API_KEY")
+
+if gemini_api_key:
+    genai.configure(api_key=gemini_api_key)
+else:
+    print("[ERROR]: No se encontró GEMINI_API_KEY en el archivo .env")
+
 model = genai.GenerativeModel('gemini-1.5-flash')
+clients_connected = {}
 
 def createId(ip_client):
     # Codificar el string a bytes antes de hashear
@@ -68,7 +77,7 @@ def client_handler(conn, addr, client_id):
 
             request = data.decode('utf-8').strip().upper()
 
-            if request == 'ia' or 'IA':
+            if request == 'IA':
                 iaActivate(conn)
                 continue
 
