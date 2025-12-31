@@ -4,7 +4,7 @@ import threading
 import datetime
 import hashlib
 import os
-import google.generativeai as genai
+import google as genai
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,7 +18,7 @@ if gemini_api_key:
 else:
     print("[ERROR]: No se encontró GEMINI_API_KEY en el archivo .env")
 
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.Client(api_key=gemini_api_key)
 clients_connected = {}
 
 def createId(ip_client):
@@ -53,7 +53,10 @@ def iaActivate(conn):
                 break
 
             try:
-                response = model.generate_content(request)
+                response = model.models.generate_content(
+                    model='gemini-1.5-flash',
+                    contents=request
+                )
                 reply = response.text
             except Exception as e:
                 reply = f"[ERROR-IA]: {e}"
