@@ -16,6 +16,10 @@ model = None
 
 if gemini_api_key:
     model = genai.Client(api_key=gemini_api_key)
+
+    # Imprime los modelos disponibles para depurar
+    for m in model.models.list():
+        print(f"Modelo disponible: {m.name}")
 else:
     print("[ERROR]: No se encontró GEMINI_API_KEY en el archivo .env")
 
