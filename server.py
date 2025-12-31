@@ -62,7 +62,7 @@ def iaActivate(conn):
                 # Verificamos si el cliente de IA existe
                 if model:
                     response = model.models.generate_content(
-                        model='models/gemini-1.5-flash',
+                        model='models/gemini-2.5-flash-lite',
                         contents=request
                     )
                     # Usamos getattr o una validación simple para asegurar el string
