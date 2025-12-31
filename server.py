@@ -21,8 +21,8 @@ if gemini_api_key:
     model = genai.Client(api_key=gemini_api_key)
 
     # Imprime los modelos disponibles para depurar
-    for m in model.models.list():
-        print(f"Modelo disponible: {m.name}")
+    #for m in model.models.list():
+    #    print(f"Modelo disponible: {m.name}")
 else:
     print("[ERROR]: No se encontró GEMINI_API_KEY en el archivo .env")
 
@@ -32,6 +32,53 @@ def createId(ip_client):
 
     # Devolver el hash como string hexadecimal
     return hash_object.hexdigest()
+
+def change_model(client_id):
+    # Recuperamos la conexión del cliente desde el diccionario global
+    cliente_data = clients_connected.get(client_id)
+    if not cliente_data:
+        return "Error: Cliente no encontrado."
+    
+    conn = cliente_data['conn']
+
+    options = {
+        "1": "models/gemini-3-pro-preview",
+        "2": "models/gemini-3-flash-preview",
+        "3": "models/gemini-2.5-pro",
+        "4": "models/gemini-2.5-flash",
+        "5": "models/gemini-2.0-flash-exp",
+        "6": "models/gemini-2.0-flash-lite",
+        "7": "models/gemma-3-27b-it",
+        "8": "models/deep-research-pro-preview",
+        "9": "models/gemini-2.5-computer-use-preview",
+        "10": "models/gemini-flash-latest"
+    }
+
+    # 1. Enviar el menú
+    menu_text = "\n--- CAMBIO DE MODELO ---\n"
+    for key, name in options.items():
+        menu_text += f"{key}. {name}\n"
+    menu_text += "Seleccione una opción: "
+    
+    conn.sendall(menu_text.encode('utf-8'))
+    
+    # 2. Recibir la elección
+    try:
+        response = conn.recv(1024).decode('utf-8').strip()
+        selected_model = options.get(response)
+
+        clients_connected[client_id]['selected_model'] = selected_model
+        # Opcional: Reiniciar historial para evitar errores de compatibilidad entre modelos
+        if client_id in chat_sessions:
+            chat_sessions[client_id]['messages'] = [] 
+            return f"CONFIRMACIÓN: Modelo actualizado a -> {selected_model}"
+        else:
+            # Si la opción no es válida, usamos uno por defecto
+            clients_connected[client_id]['selected_model'] = "models/gemini-2.5-flash"
+            return "Opción inválida. Se ha asignado gemini-2.5-flash por defecto."
+            
+    except Exception as e:
+        return f"Error durante el cambio: {str(e)}"
 
 def getConnectionById(id):
     # Buscamos en el diccionario usando el ID (Hash)
@@ -76,11 +123,14 @@ def iaActivate(conn, client_id):
                             parts=[types.Part(text=m["content"])]
                         )
                     )
-                    
+
+                # Buscamos si el cliente tiene un modelo preferido, si no, usamos el flash por defecto
+                current_model_name = clients_connected[client_id].get('selected_model', "models/gemini-2.5-flash")
+
                 if model:
                     # 3. Crear el chat con el historial filtrado
                     chat = model.chats.create(
-                        model="gemini-2.5-flash",
+                        model=current_model_name,
                         history=gemini_history
                     )
 
@@ -107,6 +157,7 @@ def iaActivate(conn, client_id):
                     
                     # Actualizamos la fecha general de la sesión
                     chat_sessions[client_id]["updated_at"] = timestamp_now
+                    print(f"session actualizada: {chat_sessions[client_id]}")
                 else:
                     reply = "[ERROR-IA]: Servicio no configurado."
 
@@ -120,6 +171,7 @@ def iaActivate(conn, client_id):
 
 COMMANDS = {
     "INFO": getConnectionById,
+    "CHANGE-MODEL": change_model,
 }
 
 def client_handler(conn, addr, client_id):
