@@ -1,7 +1,7 @@
 import socket
 import sys
 
-ip_server = '127.0.0.1' 
+ip_server = '192.168.1.10' 
 port = 65432
 
 try:
