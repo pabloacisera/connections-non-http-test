@@ -84,7 +84,7 @@ def init_server():
             
             print(f'Id generado. Almacenando cliente...{client_id}')
 
-            clients_connected[client_ip]={
+            clients_connected[client_id]={
                 'conn': conn,
                 'ip': client_ip,
                 'port': client_port,
