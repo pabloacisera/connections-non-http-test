@@ -38,7 +38,8 @@ def getConnectionById(id):
     return f"ID: {id} | IP: {cliente['ip']} | Puerto: {cliente['port']} | Desde: {cliente['connectedAt']}"
 
 def iaActivate(conn):
-    conn.sendall("ia-activate")
+    # ERROR: conn.sendall("ia-activate") -> Falta .encode()
+    conn.sendall("ia-activate".encode('utf-8')) 
 
     try:
         while True:
@@ -46,8 +47,11 @@ def iaActivate(conn):
             if not data: break
 
             request = data.decode('utf-8').strip()
+            
+            # Lógica para salir del modo IA en el servidor
+            if request.lower() == 'ia-deactivate':
+                break
 
-            # se consulta mediante una api a una ia
             try:
                 response = model.generate_content(request)
                 reply = response.text
@@ -55,13 +59,11 @@ def iaActivate(conn):
                 reply = f"[ERROR-IA]: {e}"
 
             conn.sendall(reply.encode('utf-8'))
-
     except Exception as e:
         print(f"[SYSTEM]: error en la consulta {e}")
 
 COMMANDS = {
     "INFO": getConnectionById,
-    "IA": iaActivate, 
 }
 
 def client_handler(conn, addr, client_id):
