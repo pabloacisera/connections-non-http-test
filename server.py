@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 # Importación de tus módulos locales
 from helpers.memory_manage import get_last_summaries, save_message, ai_self_summarize, get_size
+from helpers.list_models import get_available_models, list_all_models_formatted
 
 load_dotenv()
 
@@ -171,36 +172,29 @@ def iaActivate(conn, client_id):
     except Exception as e:
         print(f"[SYSTEM]: Error en sesión {client_id}: {e}")
 
-def list_models(client_id):
-    """NUEVO COMANDO: Listar modelos disponibles"""
+def list_models_command(client_id):
+    """COMANDO: Listar modelos disponibles usando función importada"""
     if not model:
         return "Error: Servicio Gemini no configurado."
+    return list_all_models_formatted(model)
+
+def get_current_model(client_id):
+    """Obtiene el modelo actual o uno por defecto"""
+    raw_name = clients_connected[client_id].get('selected_model')
     
-    try:
-        response = "\n=== MODELOS DISPONIBLES PARA CHAT ===\n"
-        available_models = model.models.list()
-        
-        chat_models = []
-        for m in available_models:
-            if hasattr(m, 'supported_generation_methods'):
-                if 'generateContent' in m.supported_generation_methods:
-                    short_name = m.name.replace("models/", "")
-                    chat_models.append(short_name)
-        
-        chat_models.sort()
-        for i, model_name in enumerate(chat_models, 1):
-            response += f"{i:3}. {model_name}\n"
-        
-        response += f"\nTotal: {len(chat_models)} modelos para chat\n"
-        return response
-        
-    except Exception as e:
-        return f"Error listando modelos: {str(e)}"
+    if not raw_name:
+        # Si no hay modelo seleccionado, usar gemini-2.0-flash o el primero disponible
+        available_models = get_available_models(model)
+        if available_models:
+            return available_models[0]  # Primer modelo disponible
+        return "gemini-2.0-flash"  # Fallback seguro
+    
+    return raw_name.replace("models/", "")
 
 COMMANDS = {
     "INFO": getConnectionById,
     "CHANGE-MODEL": change_model,
-    "LIST-MODELS": list_models,  # Nuevo comando útil
+    "LIST-MODELS": list_models_command # Nuevo comando útil
 }
 
 def client_handler(conn, addr, client_id):
