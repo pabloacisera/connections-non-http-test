@@ -5,6 +5,10 @@ __pycache__/
 
 # C extensions
 *.so
+*.cert
+*.key
+arquitectura-nube.txt
+anot.txt
 
 # Distribution / packaging
 .Python
