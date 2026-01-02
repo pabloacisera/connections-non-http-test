@@ -97,7 +97,7 @@ def iaActivate(conn, client_id):
             request = data.decode('utf-8').strip()
             
             # Buscamos el modelo actual del cliente para todas las operaciones
-            current_model_name = clients_connected[client_id].get('selected_model', "models/gemini-2.0-flash")
+            current_model_name = clients_connected[client_id].get('selected_model', "gemini-2.0-flash")
 
             # SALIDA: Generar resumen final y limpiar RAM
             if request.lower() == 'ia-deactivate':
