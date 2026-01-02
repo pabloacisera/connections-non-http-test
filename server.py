@@ -36,11 +36,11 @@ def change_model(client_id):
     
     conn = cliente_data['conn']
     options = {
-        "1": "models/gemini-2.0-flash",
-        "2": "models/gemini-2.0-flash-lite",
-        "3": "models/gemini-1.5-pro",
-        "4": "models/gemini-1.5-flash",
-        "5": "models/gemini-1.0-pro"
+        "1": "gemini-2.0-flash",
+        "2": "gemini-2.0-flash-lite",
+        "3": "gemini-1.5-pro",
+        "4": "gemini-1.5-flash",
+        "5": "gemini-1.0-pro"
     }
 
     menu_text = "\n--- CAMBIO DE MODELO ---\n"
