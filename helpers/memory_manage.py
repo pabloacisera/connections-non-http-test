@@ -4,27 +4,36 @@ import datetime
 from database.database import get_connection
 
 def save_message(client_id, role, content):
-    """ persistencia real en sqlite """
-    with get_connection() as conn:
-        cursor = conn.cursor()
-
-        cursor.execute("INSERT INTO messages (client_id, role, content, timestamp) VALUES(?, ?, ?, ?)", (client_id, role, content, datetime.datetime.now()))
-
-        conn.commit()
+    """ Persistencia real en SQLite """
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO messages (client_id, role, content, timestamp) VALUES (?, ?, ?, ?)", 
+                (client_id, role, content, datetime.datetime.now())
+            )
+            conn.commit()
+    except Exception as e:
+        print(f"[ERROR-DB]: No se pudo guardar el mensaje: {e}")
 
 def get_last_summaries(client_id):
-    """ recupera contexto historico """
-    with get_connection() as conn:
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT summary_text FROM summaries WHERE client_id ? ORDER BY created_at DESC LIMIT 1", (client_id,))
-
-        row = cursor.fetchone()
-
-        return row[0] if row else None
+    """ Recupera contexto histórico (Capa 3) """
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            # CORRECCIÓN: Se agregó el "=" faltante después de client_id
+            cursor.execute(
+                "SELECT summary_text FROM summaries WHERE client_id = ? ORDER BY created_at DESC LIMIT 1", 
+                (client_id,)
+            )
+            row = cursor.fetchone()
+            return row[0] if row else None
+    except Exception as e:
+        print(f"[ERROR-DB]: Error al recuperar resumen: {e}")
+        return None
     
 def get_size(obj, seen=None):
-    """Calcula el tamaño real en bytes de un objeto y sus contenidos (recursivo)."""
+    """ Calcula el tamaño real en bytes de un objeto y sus contenidos """
     size = sys.getsizeof(obj)
     if seen is None:
         seen = set()
@@ -42,44 +51,40 @@ def get_size(obj, seen=None):
     return size
     
 def ai_self_summarize(client_id, messages_list, genai_client, model_selected):
-    """ gemini resume los puntos principales de la conversacion guuardada en ram y si corresponde la limpia"""
+    """ Gemini resume la conversación y guarda en DB """
+    if not messages_list: return None
 
-    if not messages_list: return
-
-    # verificar el limite de ram de 100mb
-    current_ram = get_size(messages_list)
-    if current_ram > 104857600:
-        print(f"[ALERT]: Memoria excedida. RAM: {current_ram} bytes. Forzando auto-resumen")
-
-    # convertir historial a texto para procesarlo
     history_text = "\n".join([f"{m['role']}: {m['content']}" for m in messages_list])
 
     prompt_instruction = (
-        "Actúa como un gestor de memoria. Resume de forma tecnica y concisa esta conversación para que pueda ser retomada en el futuro sin perder información clave o contexto"
-        f"\n\n{history_text}"
+        "Actúa como un gestor de memoria. Resume de forma técnica y concisa esta conversación "
+        "para que pueda ser retomada en el futuro sin perder información clave:\n\n"
+        f"{history_text}"
     )
 
-    # la ia se resume a si misma
     try:
         response = genai_client.models.generate_content(
-            model = model_selected,
-            contents = prompt_instruction
+            model=model_selected,
+            contents=prompt_instruction
         )
-
         summary_result = response.text
 
-        # guardar con limite de 50 por client_id
         with get_connection() as conn:
             cursor = conn.cursor()
-
-            cursor.execute("INSERT INTO summaries (client_id, summary_text, created_at) VALUES(?, ?, ?)", (client_id, summary_result, datetime.datetime.now()))
-
-            # limpieza de registros antiguos, mantemos los ultimo 50
-            cursor.execute(''' DELETE FROM summaries WHERE client_id = ? AND id NOT IN (SELECT id FROM summaries WHERE client_id = ? ORDER BY created_at DESC LIMIT 50) ''', (client_id, client_id))
-
+            # Guardar nuevo resumen
+            cursor.execute(
+                "INSERT INTO summaries (client_id, summary_text, created_at) VALUES (?, ?, ?)", 
+                (client_id, summary_result, datetime.datetime.now())
+            )
+            # Mantener solo los últimos 50
+            cursor.execute(''' 
+                DELETE FROM summaries 
+                WHERE client_id = ? AND id NOT IN (
+                    SELECT id FROM summaries WHERE client_id = ? ORDER BY created_at DESC LIMIT 50
+                ) 
+            ''', (client_id, client_id))
             conn.commit()
         return summary_result
     except Exception as e:
-        print(f"[ERROR]: into summary: {e}")
+        print(f"[ERROR-IA]: Error en auto-resumen: {e}")
         return None
-
