@@ -1,0 +1,167 @@
+LISTANDO MODELOS DISPONIBLES:
+================================================================================
+
+1. Nombre: models/embedding-gecko-001
+   Nombre corto: embedding-gecko-001
+
+2. Nombre: models/gemini-2.5-flash
+   Nombre corto: gemini-2.5-flash
+
+3. Nombre: models/gemini-2.5-pro
+   Nombre corto: gemini-2.5-pro
+
+4. Nombre: models/gemini-2.0-flash-exp
+   Nombre corto: gemini-2.0-flash-exp
+
+5. Nombre: models/gemini-2.0-flash
+   Nombre corto: gemini-2.0-flash
+
+6. Nombre: models/gemini-2.0-flash-001
+   Nombre corto: gemini-2.0-flash-001
+
+7. Nombre: models/gemini-2.0-flash-exp-image-generation
+   Nombre corto: gemini-2.0-flash-exp-image-generation
+
+8. Nombre: models/gemini-2.0-flash-lite-001
+   Nombre corto: gemini-2.0-flash-lite-001
+
+9. Nombre: models/gemini-2.0-flash-lite
+   Nombre corto: gemini-2.0-flash-lite
+
+10. Nombre: models/gemini-2.0-flash-lite-preview-02-05
+   Nombre corto: gemini-2.0-flash-lite-preview-02-05
+
+11. Nombre: models/gemini-2.0-flash-lite-preview
+   Nombre corto: gemini-2.0-flash-lite-preview
+
+12. Nombre: models/gemini-exp-1206
+   Nombre corto: gemini-exp-1206
+
+13. Nombre: models/gemini-2.5-flash-preview-tts
+   Nombre corto: gemini-2.5-flash-preview-tts
+
+14. Nombre: models/gemini-2.5-pro-preview-tts
+   Nombre corto: gemini-2.5-pro-preview-tts
+
+15. Nombre: models/gemma-3-1b-it
+   Nombre corto: gemma-3-1b-it
+
+16. Nombre: models/gemma-3-4b-it
+   Nombre corto: gemma-3-4b-it
+
+17. Nombre: models/gemma-3-12b-it
+   Nombre corto: gemma-3-12b-it
+
+18. Nombre: models/gemma-3-27b-it
+   Nombre corto: gemma-3-27b-it
+
+19. Nombre: models/gemma-3n-e4b-it
+   Nombre corto: gemma-3n-e4b-it
+
+20. Nombre: models/gemma-3n-e2b-it
+   Nombre corto: gemma-3n-e2b-it
+
+21. Nombre: models/gemini-flash-latest
+   Nombre corto: gemini-flash-latest
+
+22. Nombre: models/gemini-flash-lite-latest
+   Nombre corto: gemini-flash-lite-latest
+
+23. Nombre: models/gemini-pro-latest
+   Nombre corto: gemini-pro-latest
+
+24. Nombre: models/gemini-2.5-flash-lite
+   Nombre corto: gemini-2.5-flash-lite
+
+25. Nombre: models/gemini-2.5-flash-image-preview
+   Nombre corto: gemini-2.5-flash-image-preview
+
+26. Nombre: models/gemini-2.5-flash-image
+   Nombre corto: gemini-2.5-flash-image
+
+27. Nombre: models/gemini-2.5-flash-preview-09-2025
+   Nombre corto: gemini-2.5-flash-preview-09-2025
+
+28. Nombre: models/gemini-2.5-flash-lite-preview-09-2025
+   Nombre corto: gemini-2.5-flash-lite-preview-09-2025
+
+29. Nombre: models/gemini-3-pro-preview
+   Nombre corto: gemini-3-pro-preview
+
+30. Nombre: models/gemini-3-flash-preview
+   Nombre corto: gemini-3-flash-preview
+
+31. Nombre: models/gemini-3-pro-image-preview
+   Nombre corto: gemini-3-pro-image-preview
+
+32. Nombre: models/nano-banana-pro-preview
+   Nombre corto: nano-banana-pro-preview
+
+33. Nombre: models/gemini-robotics-er-1.5-preview
+   Nombre corto: gemini-robotics-er-1.5-preview
+
+34. Nombre: models/gemini-2.5-computer-use-preview-10-2025
+   Nombre corto: gemini-2.5-computer-use-preview-10-2025
+
+35. Nombre: models/deep-research-pro-preview-12-2025
+   Nombre corto: deep-research-pro-preview-12-2025
+
+36. Nombre: models/embedding-001
+   Nombre corto: embedding-001
+
+37. Nombre: models/text-embedding-004
+   Nombre corto: text-embedding-004
+
+38. Nombre: models/gemini-embedding-exp-03-07
+   Nombre corto: gemini-embedding-exp-03-07
+
+39. Nombre: models/gemini-embedding-exp
+   Nombre corto: gemini-embedding-exp
+
+40. Nombre: models/gemini-embedding-001
+   Nombre corto: gemini-embedding-001
+
+41. Nombre: models/aqa
+   Nombre corto: aqa
+
+42. Nombre: models/imagen-4.0-generate-preview-06-06
+   Nombre corto: imagen-4.0-generate-preview-06-06
+
+43. Nombre: models/imagen-4.0-ultra-generate-preview-06-06
+   Nombre corto: imagen-4.0-ultra-generate-preview-06-06
+
+44. Nombre: models/imagen-4.0-generate-001
+   Nombre corto: imagen-4.0-generate-001
+
+45. Nombre: models/imagen-4.0-ultra-generate-001
+   Nombre corto: imagen-4.0-ultra-generate-001
+
+46. Nombre: models/imagen-4.0-fast-generate-001
+   Nombre corto: imagen-4.0-fast-generate-001
+
+47. Nombre: models/veo-2.0-generate-001
+   Nombre corto: veo-2.0-generate-001
+
+48. Nombre: models/veo-3.0-generate-001
+   Nombre corto: veo-3.0-generate-001
+
+49. Nombre: models/veo-3.0-fast-generate-001
+   Nombre corto: veo-3.0-fast-generate-001
+
+50. Nombre: models/veo-3.1-generate-preview
+   Nombre corto: veo-3.1-generate-preview
+
+51. Nombre: models/veo-3.1-fast-generate-preview
+   Nombre corto: veo-3.1-fast-generate-preview
+
+52. Nombre: models/gemini-2.5-flash-native-audio-latest
+   Nombre corto: gemini-2.5-flash-native-audio-latest
+
+53. Nombre: models/gemini-2.5-flash-native-audio-preview-09-2025
+   Nombre corto: gemini-2.5-flash-native-audio-preview-09-2025
+
+54. Nombre: models/gemini-2.5-flash-native-audio-preview-12-2025
+   Nombre corto: gemini-2.5-flash-native-audio-preview-12-2025
+
+================================================================================
+TOTAL: 54 modelos encontrados
