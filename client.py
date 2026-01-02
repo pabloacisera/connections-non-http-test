@@ -1,70 +1,96 @@
+# client.py - ACTUALIZADO
 import socket
-import sys
+import ssl
+import time
 import os
 from dotenv import load_dotenv
+from core.security import wrap_client_socket
 
 load_dotenv()
 
-ip_server = os.getenv("IP_SERVER")
-server_port = int(os.getenv("PORT_SERVER", 65432))
+IP_SERVER = os.getenv("IP_SERVER", "localhost")
+PORT_SERVER = int(os.getenv("PORT_SERVER", 65432))
+USE_TLS = os.getenv("USE_TLS", "true").lower() == "true"
 
-try:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((ip_server, server_port))
+def typewriter_print(text, delay=0.001):
+    """Imprime con efecto máquina de escribir"""
+    for char in text:
+        print(char, end='', flush=True)
+        time.sleep(delay)
+    print()
+
+def main():
+    try:
+        print(f"[CLIENT] Conectando a {IP_SERVER}:{PORT_SERVER}...")
         
-        # 1. Recibir confirmación de registro e ID
-        id_data = s.recv(1024).decode()
-        print(f"[SYSTEM]: Conectado al servidor.")
-        print(f"[SYSTEM]: {id_data}")
-        print("-" * 30)
-
-        # 2. Bucle infinito de comandos
+        # Crear socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(30)
+        
+        # Aplicar TLS si está configurado
+        if USE_TLS:
+            sock = wrap_client_socket(sock, IP_SERVER)
+            print("[CLIENT] Conexión TLS establecida")
+        
+        # Conectar
+        sock.connect((IP_SERVER, PORT_SERVER))
+        
+        # Recibir ID
+        welcome = sock.recv(1024).decode()
+        typewriter_print(f"[SERVER] {welcome}", 0.01)
+        print("-" * 40)
+        
+        # Bucle principal
         while True:
-            # Pedir entrada al usuario
-            cmd = input("Comando > ").strip()
-
+            cmd = input("\nComando > ").strip()
+            
             if not cmd:
                 continue
-
-            # Lógica de salida manual
-            if cmd.lower() in ['out', 'exit', 'quit']:
-                print("[SYSTEM]: Cerrando conexión...")
-                break
-
-            # Enviar el comando al servidor
-            s.sendall(cmd.encode('utf-8'))
             
-            # Recibir y mostrar la respuesta
-            response = s.recv(4096).decode('utf-8') # Buffer más grande para el INFO
-
-            # --- Lógica de Activación de IA ---
-            if response == 'ia-activate':
-                print("[SYSTEM]: Modo IA activado. Escribe 'back' para salir del modo consulta.")
+            if cmd.lower() in ['exit', 'quit', 'salir']:
+                print("[CLIENT] Desconectando...")
+                break
+            
+            # Enviar comando
+            sock.sendall(cmd.encode())
+            
+            # Recibir respuesta
+            response = sock.recv(4096).decode()
+            
+            # Modo IA
+            if response == "ia-activate":
+                typewriter_print("[SERVER] Modo IA activado. Escribe 'back' para salir.", 0.01)
                 
                 while True:
-                    pregunta = input("IA > ").strip()
+                    user_input = input("IA > ").strip()
                     
-                    if not pregunta:
-                        continue
-                    
-                    # Opción para salir del modo IA y volver a comandos normales
-                    if pregunta.lower() in ['back', 'exit']:
-                        s.sendall(b'ia-deactivate') # Avisamos al servidor si es necesario
-                        print("[SYSTEM]: Volviendo a modo comando...")
+                    if user_input.lower() in ['back', 'salir']:
+                        sock.sendall(b"ia-deactivate")
+                        typewriter_print("[SERVER] Saliendo del modo IA...", 0.01)
                         break
                     
-                    s.sendall(pregunta.encode('utf-8'))
-                    res_ia = s.recv(4096).decode('utf-8')
-                    print(f"\n{res_ia}\n")
+                    sock.sendall(user_input.encode())
+                    ai_response = sock.recv(8192).decode()
+                    
+                    print("\n" + "=" * 60)
+                    typewriter_print(ai_response, 0.001)
+                    print("=" * 60 + "\n")
             else:
-                # Respuesta normal del servidor
-                print(f"\n{response}\n")
+                # Respuesta normal
+                print("\n" + "=" * 60)
+                typewriter_print(response, 0.01)
+                print("=" * 60)
+                
+    except ConnectionRefusedError:
+        print("[ERROR] No se pudo conectar. Verifica que el servidor esté ejecutándose.")
+    except socket.timeout:
+        print("[ERROR] Timeout de conexión")
+    except KeyboardInterrupt:
+        print("\n[CLIENT] Desconectado por usuario")
+    except Exception as e:
+        print(f"[ERROR] {e}")
+    
+    print("[CLIENT] Conexión cerrada")
 
-except ConnectionRefusedError:
-    print("[ERROR] No se pudo conectar. ¿Está el servidor encendido?")
-except KeyboardInterrupt:
-    print("\n[!] Saliendo (Ctrl+C)...")
-except Exception as e:
-    print(f"[ERROR] Inesperado: {e}")
-
-print("[*] Desconectado.")
+if __name__ == "__main__":
+    main()
