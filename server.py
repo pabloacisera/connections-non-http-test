@@ -21,7 +21,7 @@ clients_connected = {}
 chat_sessions = {}
 
 if gemini_api_key:
-    model = genai.Client(api_key=gemini_api_key)
+    model = genai.Client(api_key=gemini_api_key, http_options={'api_version': 'v1'})
 else:
     print("[ERROR]: No se encontró GEMINI_API_KEY en el archivo .env")
 
@@ -55,10 +55,15 @@ def change_model(client_id):
         selected_model = options.get(response)
 
         if selected_model:
-            clients_connected[client_id]['selected_model'] = selected_model
+            # LIMPIEZA E INDENTACIÓN CORREGIDA:
+            # Eliminamos cualquier prefijo accidental para que el SDK no se confunda
+            clean_model_name = selected_model.replace("models/", "") 
+            clients_connected[client_id]['selected_model'] = clean_model_name
+            
             if client_id in chat_sessions:
                 chat_sessions[client_id]['messages'] = [] 
-            return f"CONFIRMACIÓN: Modelo actualizado a -> {selected_model}"
+            
+            return f"CONFIRMACIÓN: Modelo actualizado a -> {clean_model_name}"
         else:
             return "Opción inválida. No se realizaron cambios."
             
