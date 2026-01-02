@@ -4,6 +4,7 @@ import threading
 import datetime
 import hashlib
 import os
+import time
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
@@ -20,8 +21,12 @@ model = None
 clients_connected = {}
 chat_sessions = {}
 
+# Cache para modelos
+available_models_cache = None
+cache_timestamp = 0
+CACHE_DURATION = 300  # 5 minutos en segundos
+
 # =========== CORRECCIÓN CRÍTICA: NO FORZAR API v1 ===========
-# Quita http_options={'api_version': 'v1'} para usar la versión más reciente
 if gemini_api_key:
     model = genai.Client(api_key=gemini_api_key)
     print(f"[SYSTEM]: Gemini API configurada (versión más reciente)")
@@ -32,26 +37,62 @@ def createId(ip_client):
     hash_object = hashlib.sha256(ip_client.encode('utf-8'))
     return hash_object.hexdigest()
 
-def get_available_models_list():
-    """Obtiene lista de modelos disponibles para chat"""
+def get_available_models_list(use_cache=True):
+    """Obtiene lista de modelos disponibles para chat - Optimizado"""
+    global available_models_cache, cache_timestamp
+    
     if not model:
         return []
     
+    # Usar cache si está disponible y no está expirado
+    if use_cache and available_models_cache is not None:
+        current_time = time.time()
+        if current_time - cache_timestamp < CACHE_DURATION:
+            return available_models_cache
+    
     try:
-        models = model.models.list()
+        models = list(model.models.list())
+        print(f"[DEBUG]: Total modelos obtenidos desde API: {len(models)}")
+        
         chat_models = []
         
         for m in models:
-            if hasattr(m, 'supported_generation_methods'):
-                if 'generateContent' in m.supported_generation_methods:
-                    short_name = m.name.replace("models/", "")
-                    chat_models.append(short_name)
+            model_name = m.name.replace("models/", "")
+            
+            # Filtro rápido por nombre - excluir modelos que claramente no son de chat
+            excluded_keywords = ['embedding', 'embed', 'audio', 'video', 'vision', 'veo']
+            if any(excl in model_name.lower() for excl in excluded_keywords):
+                continue
+            
+            # Para acelerar, solo probar modelos que contengan 'gemini', 'gemma', o 'chat' en el nombre
+            if any(keyword in model_name.lower() for keyword in ['gemini', 'gemma', 'chat', 'text']):
+                try:
+                    # Prueba rápida - ver si tiene atributos de chat
+                    if hasattr(m, 'supported_generation_methods'):
+                        methods = m.supported_generation_methods
+                        if methods and any('generate' in str(method).lower() for method in methods):
+                            chat_models.append(model_name)
+                    else:
+                        # Si no tiene el atributo, asumir que es de chat si pasa el filtro de nombre
+                        chat_models.append(model_name)
+                        
+                except Exception:
+                    # Si hay error, incluirlo de todas formas (fallback seguro)
+                    chat_models.append(model_name)
         
+        # Ordenar y cachear
         chat_models.sort()
+        available_models_cache = chat_models
+        cache_timestamp = time.time()
+        
+        print(f"[DEBUG]: {len(chat_models)} modelos identificados para chat")
         return chat_models
         
     except Exception as e:
         print(f"[ERROR get_available_models]: {e}")
+        # Si hay error, devolver cache si existe
+        if available_models_cache:
+            return available_models_cache
         return []
 
 def change_model(client_id):
@@ -61,8 +102,8 @@ def change_model(client_id):
     
     conn = cliente_data['conn']
     
-    # Obtener modelos disponibles dinámicamente
-    available_models = get_available_models_list()
+    # Obtener modelos disponibles (sin cache para asegurar frescura)
+    available_models = get_available_models_list(use_cache=False)
     
     if not available_models:
         return "Error: No se pudieron cargar los modelos disponibles. Usando modelo por defecto."
@@ -79,6 +120,7 @@ def change_model(client_id):
     
     if len(available_models) > 20:
         menu_text += f"... y {len(available_models) - 20} modelos más\n"
+        menu_text += f"Usa LIST-MODELS para ver todos los {len(available_models)} modelos\n"
     
     menu_text += "\nSeleccione una opción (o '0' para cancelar): "
     
@@ -114,21 +156,29 @@ def getConnectionById(id):
     return f"ID: {id} | IP: {cliente['ip']} | Puerto: {cliente['port']} | Desde: {cliente['connectedAt']}"
 
 def list_models_command(client_id):
-    """COMANDO: Listar modelos disponibles"""
+    """COMANDO: Listar modelos disponibles - Muestra todos los modelos"""
     if not model:
         return "Error: Servicio Gemini no configurado."
     
-    available_models = get_available_models_list()
+    # Obtener modelos (sin cache para información actualizada)
+    available_models = get_available_models_list(use_cache=False)
     
     if not available_models:
         return "No se encontraron modelos disponibles para chat."
     
+    # Crear lista paginada si hay muchos modelos
     result = "\n=== MODELOS DISPONIBLES PARA CHAT ===\n"
+    result += f"Total: {len(available_models)} modelos\n\n"
+    
+    # Mostrar todos los modelos, 10 por línea para mejor legibilidad
     for i, model_name in enumerate(available_models, 1):
         result += f"{i:3}. {model_name}\n"
     
-    result += f"\nTotal: {len(available_models)} modelos disponibles\n"
-    result += f"Modelo actual: {clients_connected[client_id].get('selected_model', 'gemini-2.0-flash')}\n"
+    # Información adicional
+    current_model = clients_connected[client_id].get('selected_model', 'gemini-2.0-flash')
+    result += f"\nModelo actualmente seleccionado: {current_model}\n"
+    result += "Usa CHANGE-MODEL para cambiar de modelo\n"
+    
     return result
 
 def iaActivate(conn, client_id):
@@ -155,7 +205,7 @@ def iaActivate(conn, client_id):
             request = data.decode('utf-8').strip()
             
             # Obtenemos el modelo seleccionado o usamos uno por defecto
-            raw_name = clients_connected[client_id].get('selected_model', "gemini-2.0-flash")  # Cambiado por defecto
+            raw_name = clients_connected[client_id].get('selected_model', "gemini-2.0-flash")
             current_model_name = raw_name.replace("models/", "")
 
             if request.lower() == 'ia-deactivate':
@@ -177,7 +227,6 @@ def iaActivate(conn, client_id):
                     )
 
                 if model:
-                    # =========== CORRECCIÓN: VERIFICAR MODELO ANTES DE USAR ===========
                     try:
                         chat = model.chats.create(
                             model=f"models/{current_model_name}", 
@@ -187,7 +236,6 @@ def iaActivate(conn, client_id):
                         reply = response.text if response.text else "Respuesta vacía."
                         
                     except Exception as model_error:
-                        # Si falla el modelo seleccionado, usar uno por defecto seguro
                         print(f"[WARNING]: Modelo {current_model_name} no disponible, usando gemini-2.0-flash")
                         chat = model.chats.create(
                             model="models/gemini-2.0-flash", 
@@ -218,7 +266,7 @@ def iaActivate(conn, client_id):
 COMMANDS = {
     "INFO": getConnectionById,
     "CHANGE-MODEL": change_model,
-    "LIST-MODELS": list_models_command  # Nuevo comando útil
+    "LIST-MODELS": list_models_command
 }
 
 def client_handler(conn, addr, client_id):
@@ -250,15 +298,33 @@ def client_handler(conn, addr, client_id):
 def init_server():
     print(f"Servidor iniciado {datetime.datetime.now()}.")
     
-    # Mostrar modelos disponibles al iniciar
+    # Cargar modelos disponibles al iniciar (solo muestra información básica)
     if model:
-        print("\n[SYSTEM]: Cargando modelos disponibles...")
+        print("\n[SYSTEM]: Cargando información de modelos...")
         try:
-            available_models = get_available_models_list()
-            print(f"[SYSTEM]: {len(available_models)} modelos de chat disponibles")
-            print(f"[SYSTEM]: Primeros 5 modelos: {', '.join(available_models[:5])}")
+            # Obtener conteo rápido sin probar todos los modelos
+            all_models = list(model.models.list())
+            gemini_models = []
+            for m in all_models:
+                model_name = m.name.replace("models/", "")
+                if 'gemini' in model_name.lower() and not any(excl in model_name.lower() 
+                       for excl in ['embed', 'audio', 'video', 'vision', 'veo']):
+                    gemini_models.append(model_name)
+            
+            print(f"[SYSTEM]: {len(gemini_models)} modelos Gemini identificados")
+            
+            if gemini_models:
+                # Mostrar algunos ejemplos
+                sample_models = gemini_models[:5]
+                print(f"[SYSTEM]: Ejemplos: {', '.join(sample_models)}")
+                
+                # Inicializar cache con modelos básicos
+                global available_models_cache, cache_timestamp
+                available_models_cache = gemini_models
+                cache_timestamp = time.time()
+                
         except Exception as e:
-            print(f"[SYSTEM]: Error cargando modelos: {e}")
+            print(f"[SYSTEM]: Error obteniendo información de modelos: {e}")
     
     print(f"[SYSTEM]: Modelo por defecto: gemini-2.0-flash")
     print(f"[SYSTEM]: Escuchando en puerto: {port}")
@@ -277,7 +343,7 @@ def init_server():
                 'ip': addr[0],
                 'port': addr[1],
                 'connectedAt': datetime.datetime.now(),
-                'selected_model': 'gemini-2.0-flash'  # Modelo por defecto seguro
+                'selected_model': 'gemini-2.0-flash'
             }
             thread = threading.Thread(target=client_handler, args=(conn, addr, client_id))
             thread.start()
