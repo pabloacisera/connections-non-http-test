@@ -8,7 +8,7 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 
-# Importación corregida de tus módulos locales
+# Importación de tus módulos locales
 from helpers.memory_manage import get_last_summaries, save_message, ai_self_summarize, get_size
 
 load_dotenv()
@@ -20,6 +20,7 @@ model = None
 clients_connected = {}
 chat_sessions = {}
 
+# CORRECCIÓN 1: Forzamos la versión v1 de la API para mayor estabilidad
 if gemini_api_key:
     model = genai.Client(api_key=gemini_api_key, http_options={'api_version': 'v1'})
 else:
@@ -35,6 +36,8 @@ def change_model(client_id):
         return "Error: Cliente no encontrado."
     
     conn = cliente_data['conn']
+    
+    # Nombres limpios sin el prefijo "models/" en el diccionario
     options = {
         "1": "gemini-2.0-flash",
         "2": "gemini-2.0-flash-lite",
@@ -55,8 +58,7 @@ def change_model(client_id):
         selected_model = options.get(response)
 
         if selected_model:
-            # LIMPIEZA E INDENTACIÓN CORREGIDA:
-            # Eliminamos cualquier prefijo accidental para que el SDK no se confunda
+            # CORRECCIÓN 2: Guardamos el nombre siempre limpio
             clean_model_name = selected_model.replace("models/", "") 
             clients_connected[client_id]['selected_model'] = clean_model_name
             
@@ -82,13 +84,11 @@ def iaActivate(conn, client_id):
     """
     conn.sendall("ia-activate".encode('utf-8')) 
 
-    # CARGAR contexto histórico de Capa 3 (Resúmenes)
     last_summary = get_last_summaries(client_id)
     if client_id not in chat_sessions:
         chat_sessions[client_id] = {"messages": []}
 
     if last_summary:
-        # Inyectamos el resumen en RAM para dar contexto a la IA
         chat_sessions[client_id]["messages"].append({
             "role": "user", 
             "content": f"[SYSTEM]: Contexto de sesiones previas: {last_summary}" 
@@ -101,24 +101,22 @@ def iaActivate(conn, client_id):
 
             request = data.decode('utf-8').strip()
             
-            # Buscamos el modelo actual del cliente para todas las operaciones
-            current_model_name = clients_connected[client_id].get('selected_model', "gemini-2.0-flash")
+            # CORRECCIÓN 3: Obtenemos el nombre y aseguramos que no tenga duplicados de prefijo
+            raw_name = clients_connected[client_id].get('selected_model', "gemini-1.5-flash")
+            current_model_name = raw_name.replace("models/", "")
 
-            # SALIDA: Generar resumen final y limpiar RAM
             if request.lower() == 'ia-deactivate':
                 print(f"[SYSTEM]: Generando resumen de cierre para {client_id}...")
                 ai_self_summarize(client_id, chat_sessions[client_id]['messages'], model, current_model_name)
                 chat_sessions[client_id]["messages"] = [] 
                 break
 
-            # VERIFICACIÓN DE RAM (Umbral 100MB): Auto-resumen proactivo
             if get_size(chat_sessions[client_id]["messages"]) > 104857600:
                 print(f"[ALERTA]: 100MB excedidos. Compactando memoria para {client_id}...")
                 ai_self_summarize(client_id, chat_sessions[client_id]['messages'], model, current_model_name)
                 chat_sessions[client_id]["messages"] = []
 
             try:
-                # Preparar el historial filtrado para Gemini
                 gemini_history = []
                 for m in chat_sessions[client_id]["messages"]:
                     gemini_history.append(
@@ -126,18 +124,18 @@ def iaActivate(conn, client_id):
                     )
 
                 if model:
-                    chat = model.chats.create(model=current_model_name, history=gemini_history)
+                    # CORRECCIÓN 4: Forzamos el formato 'models/nombre' que requiere v1 de forma explícita
+                    chat = model.chats.create(
+                        model=f"models/{current_model_name}", 
+                        history=gemini_history
+                    )
                     response = chat.send_message(request)
                     reply = response.text if response.text else "Respuesta vacía."
 
-                    # --- PERSISTENCIA DUAL ---
                     timestamp_now = datetime.datetime.now()
-                    
-                    # 1. Guardar en RAM (Capa 1)
                     chat_sessions[client_id]["messages"].append({"role": "user", "content": request, "timestamp": timestamp_now})
                     chat_sessions[client_id]["messages"].append({"role": "model", "content": reply, "timestamp": timestamp_now})
                     
-                    # 2. Guardar en SQLITE (Capa 2: Mensajes crudos)
                     save_message(client_id, "user", request)
                     save_message(client_id, "model", reply)
                     
