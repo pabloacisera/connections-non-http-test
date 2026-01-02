@@ -20,9 +20,11 @@ model = None
 clients_connected = {}
 chat_sessions = {}
 
-# CORRECCIÓN 1: Forzamos la versión v1 de la API para mayor estabilidad
+# =========== CORRECCIÓN CRÍTICA: NO FORZAR API v1 ===========
+# Quita http_options={'api_version': 'v1'} para usar la versión más reciente
 if gemini_api_key:
-    model = genai.Client(api_key=gemini_api_key, http_options={'api_version': 'v1'})
+    model = genai.Client(api_key=gemini_api_key)
+    print(f"[SYSTEM]: Gemini API configurada (versión más reciente)")
 else:
     print("[ERROR]: No se encontró GEMINI_API_KEY en el archivo .env")
 
@@ -37,13 +39,20 @@ def change_model(client_id):
     
     conn = cliente_data['conn']
     
-    # Nombres limpios sin el prefijo "models/" en el diccionario
+    # =========== MODELOS ACTUALIZADOS CON LOS QUE SÍ TIENES ===========
+    # Basado en tu listado de modelos disponibles
     options = {
         "1": "gemini-2.0-flash",
         "2": "gemini-2.0-flash-lite",
-        "3": "gemini-1.5-pro",
-        "4": "gemini-1.5-flash",
-        "5": "gemini-1.0-pro"
+        "3": "gemini-2.5-flash",        # REEMPLAZA gemini-1.5-pro
+        "4": "gemini-2.0-flash-exp",    # REEMPLAZA gemini-1.5-flash
+        "5": "gemini-pro-latest",       # REEMPLAZA gemini-1.0-pro
+        "6": "gemini-2.5-pro",
+        "7": "gemini-2.5-flash-lite",
+        "8": "gemini-3-flash-preview",
+        "9": "gemini-3-pro-preview",
+        "10": "gemini-flash-latest",    # Siempre la última versión flash
+        "11": "gemini-pro-latest",      # Siempre la última versión pro
     }
 
     menu_text = "\n--- CAMBIO DE MODELO ---\n"
@@ -58,7 +67,7 @@ def change_model(client_id):
         selected_model = options.get(response)
 
         if selected_model:
-            # CORRECCIÓN 2: Guardamos el nombre siempre limpio
+            # Guardamos el nombre siempre limpio
             clean_model_name = selected_model.replace("models/", "") 
             clients_connected[client_id]['selected_model'] = clean_model_name
             
@@ -101,8 +110,8 @@ def iaActivate(conn, client_id):
 
             request = data.decode('utf-8').strip()
             
-            # CORRECCIÓN 3: Obtenemos el nombre y aseguramos que no tenga duplicados de prefijo
-            raw_name = clients_connected[client_id].get('selected_model', "gemini-1.5-flash")
+            # Obtenemos el modelo seleccionado o usamos uno por defecto
+            raw_name = clients_connected[client_id].get('selected_model', "gemini-2.0-flash")  # Cambiado por defecto
             current_model_name = raw_name.replace("models/", "")
 
             if request.lower() == 'ia-deactivate':
@@ -124,13 +133,24 @@ def iaActivate(conn, client_id):
                     )
 
                 if model:
-                    # CORRECCIÓN 4: Forzamos el formato 'models/nombre' que requiere v1 de forma explícita
-                    chat = model.chats.create(
-                        model=f"models/{current_model_name}", 
-                        history=gemini_history
-                    )
-                    response = chat.send_message(request)
-                    reply = response.text if response.text else "Respuesta vacía."
+                    # =========== CORRECCIÓN: VERIFICAR MODELO ANTES DE USAR ===========
+                    try:
+                        chat = model.chats.create(
+                            model=f"models/{current_model_name}", 
+                            history=gemini_history
+                        )
+                        response = chat.send_message(request)
+                        reply = response.text if response.text else "Respuesta vacía."
+                        
+                    except Exception as model_error:
+                        # Si falla el modelo seleccionado, usar uno por defecto seguro
+                        print(f"[WARNING]: Modelo {current_model_name} no disponible, usando gemini-2.0-flash")
+                        chat = model.chats.create(
+                            model="models/gemini-2.0-flash", 
+                            history=gemini_history
+                        )
+                        response = chat.send_message(request)
+                        reply = f"[Modelo automático: gemini-2.0-flash]\n{response.text if response.text else 'Respuesta vacía.'}"
 
                     timestamp_now = datetime.datetime.now()
                     chat_sessions[client_id]["messages"].append({"role": "user", "content": request, "timestamp": timestamp_now})
@@ -141,7 +161,7 @@ def iaActivate(conn, client_id):
                     
                     chat_sessions[client_id]["updated_at"] = timestamp_now
                 else:
-                    reply = "[ERROR-IA]: Servicio no configurado."
+                    reply = "[ERROR-IA]: Servicio Gemini no configurado."
 
             except Exception as e:
                 reply = f"[ERROR-IA]: {str(e)}"
@@ -151,9 +171,36 @@ def iaActivate(conn, client_id):
     except Exception as e:
         print(f"[SYSTEM]: Error en sesión {client_id}: {e}")
 
+def list_models(client_id):
+    """NUEVO COMANDO: Listar modelos disponibles"""
+    if not model:
+        return "Error: Servicio Gemini no configurado."
+    
+    try:
+        response = "\n=== MODELOS DISPONIBLES PARA CHAT ===\n"
+        available_models = model.models.list()
+        
+        chat_models = []
+        for m in available_models:
+            if hasattr(m, 'supported_generation_methods'):
+                if 'generateContent' in m.supported_generation_methods:
+                    short_name = m.name.replace("models/", "")
+                    chat_models.append(short_name)
+        
+        chat_models.sort()
+        for i, model_name in enumerate(chat_models, 1):
+            response += f"{i:3}. {model_name}\n"
+        
+        response += f"\nTotal: {len(chat_models)} modelos para chat\n"
+        return response
+        
+    except Exception as e:
+        return f"Error listando modelos: {str(e)}"
+
 COMMANDS = {
     "INFO": getConnectionById,
     "CHANGE-MODEL": change_model,
+    "LIST-MODELS": list_models,  # Nuevo comando útil
 }
 
 def client_handler(conn, addr, client_id):
@@ -184,11 +231,30 @@ def client_handler(conn, addr, client_id):
 
 def init_server():
     print(f"Servidor iniciado {datetime.datetime.now()}.")
+    
+    # Mostrar modelos disponibles al iniciar
+    if model:
+        print("\n[SYSTEM]: Cargando modelos disponibles...")
+        try:
+            available_models = model.models.list()
+            chat_count = 0
+            for m in available_models:
+                if hasattr(m, 'supported_generation_methods'):
+                    if 'generateContent' in m.supported_generation_methods:
+                        chat_count += 1
+            
+            print(f"[SYSTEM]: {chat_count} modelos de chat disponibles")
+        except:
+            print("[SYSTEM]: No se pudieron verificar los modelos")
+    
+    print(f"[SYSTEM]: Modelo por defecto: gemini-2.0-flash")
+    print(f"[SYSTEM]: Escuchando en puerto: {port}")
+    
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((ip_range_listen, port))
         s.listen()
-        print(f"Escuchando en puerto: {port}")
+        print(f"[SYSTEM]: Servidor listo para conexiones...")
 
         while True:
             conn, addr = s.accept()
@@ -197,10 +263,12 @@ def init_server():
                 'conn': conn,
                 'ip': addr[0],
                 'port': addr[1],
-                'connectedAt': datetime.datetime.now()
+                'connectedAt': datetime.datetime.now(),
+                'selected_model': 'gemini-2.0-flash'  # Modelo por defecto seguro
             }
             thread = threading.Thread(target=client_handler, args=(conn, addr, client_id))
             thread.start()
+            print(f"[SYSTEM]: Cliente {client_id[:8]}... conectado desde {addr[0]}:{addr[1]}")
 
 if __name__ == "__main__":
     init_server()
